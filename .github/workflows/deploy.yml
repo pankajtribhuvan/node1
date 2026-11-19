@@ -42,7 +42,7 @@ jobs:
         tar \
           --exclude=.git \
           --exclude=node_modules \
-          -czf app.tar.gz .
+          -czf /tmp/app.tar.gz .
 
 
     # STEP 5: Configure SSH
@@ -63,10 +63,8 @@ jobs:
 
     - name: Copy Files to EC2
       run: |
-
-        scp app.tar.gz \
+        scp /tmp/app.tar.gz \
         ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/app.tar.gz
-
 
     # STEP 7: Deploy Application
 
