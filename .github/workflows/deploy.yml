@@ -1,0 +1,94 @@
+name: Node.js CI CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+
+  build-and-deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    # STEP 1: Checkout Source Code
+
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+
+    # STEP 2: Setup Node.js
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+
+    # STEP 3: Install Dependencies
+
+    - name: Install Dependencies
+      run: npm ci
+
+
+    # STEP 4: Create Deployment Package
+
+    - name: Create Deployment Package
+      run: |
+        tar \
+          --exclude=.git \
+          --exclude=node_modules \
+          -czf app.tar.gz .
+
+
+    # STEP 5: Configure SSH
+
+    - name: Configure SSH
+      run: |
+
+        mkdir -p ~/.ssh
+
+        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+
+        chmod 600 ~/.ssh/id_rsa
+
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+
+    # STEP 6: Copy Application to EC2
+
+    - name: Copy Files to EC2
+      run: |
+
+        scp app.tar.gz \
+        ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/app.tar.gz
+
+
+    # STEP 7: Deploy Application
+
+    - name: Deploy on EC2
+      run: |
+
+        ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+
+          mkdir -p ~/nodejs-app
+
+          tar -xzf /tmp/app.tar.gz -C ~/nodejs-app
+
+          cd ~/nodejs-app
+
+          npm ci --omit=dev
+
+          pm2 startOrReload ecosystem.config.js --update-env
+
+          pm2 save
+
+          rm -f /tmp/app.tar.gz
+
+          echo "Deployment Successful!"
+
+        EOF
